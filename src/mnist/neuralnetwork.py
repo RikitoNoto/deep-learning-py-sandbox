@@ -1,6 +1,6 @@
 # coding: utf-8
 import sys, os
-from typing import Callable
+from typing import Callable, Optional
 from numbers import Number
 sys.path.append(os.pardir)  # 親ディレクトリのファイルをインポートするための設定
 from common.functions import *
@@ -27,23 +27,38 @@ class NeuralNetwork:
             layer = np.vstack([layer, np.zeros(layer_sizes[i+1])])
             self.params.append(layer)
             
-    def predict(self, inputs: NDArray):
+    def predict(self, inputs: NDArray, weights_matrix:list[ NDArray]):
+        """
+        inputs: 入力値
+                複数行可
+                [
+                    [1, 12, 31, 0], // 1つ目の入力
+                    [78, 13, 134, 7], // 2つ目の入力
+                ]
+                => 
+                [
+                    [0.11, 0.44, 0.19, 0.0], // 1つ目の結果
+                    [0.19, 0.021, 0.5, 0.0], // 1つ目の結果
+                ]
+                
+        """
         x =  inputs
-        for i, weights in enumerate(self.params):
-            x = np.vstack([x, np.full((x.shape[1]), 1)]) # 最後の列にバイアスを追加
+        for i, weights in enumerate(weights_matrix):
+            x = np.hstack([x, np.full((x.shape[0], 1), 1)]) # 最後の列にバイアスを追加
             a = np.dot(x, weights)
             y = self.__activation_funcs[i](a)
             x = y
         return y
         
     # x:入力データ, t:教師データ
-    def loss(self, x, t):
-        y = self.predict(x)
+    def loss(self, x, t, weights_matrix: Optional[list[NDArray]]=None):
+        weights_matrix = weights_matrix or self.params
+        y = self.predict(x, weights_matrix)
         
         return cross_entropy_error(y, t)
     
     def accuracy(self, x, t):
-        y = self.predict(x)
+        y = self.predict(x, self.params)
         y = np.argmax(y, axis=1)
         t = np.argmax(t, axis=1)
         
@@ -67,10 +82,18 @@ class NeuralNetwork:
             self.params[i] = layer_weights - (learning_rate * gradients[i])
 
     def gradient(self, x, t):
-        loss_W = lambda W: self.loss(x, t)
+        """
+        x: 入力の行列
+            [
+                [1, 12, 31, 0], // 1つ目の入力
+                [78, 13, 134, 7], // 2つ目の入力
+            ]
+        
+        """
+        loss_W = lambda weights_matrix: self.loss(x, t, weights_matrix)
         grads: list[NDArray] = []
-        for weights in self.params:
-            grads.append(self.partial_difference(loss_W, weights))
+        for layer, weights in enumerate(self.params):
+            grads.append(self.partial_difference(loss_W, layer, self.params))
         return grads
     
     def _center_difference(self, func: Callable[[Number], Number], x: Number, h: Number = 1e-4) -> Number:
@@ -78,16 +101,16 @@ class NeuralNetwork:
         diff_minus = func(x - h)
         return (diff_plus - diff_minus) / (2 * h)
     
-    def partial_difference(self, func: Callable[[NDArray], Number], x: NDArray, h: Number = 1e-4) -> Number:
-        grad = np.zeros_like(x)
-        iterator = np.nditer(x, flags=['multi_index'], op_flags=['readwrite'])
+    def partial_difference(self, func: Callable[[NDArray], Number], layer: int, weights_matrix: list[NDArray], h: Number = 1e-4) -> Number:
+        grad = np.zeros_like(weights_matrix[layer])
+        iterator = np.nditer(weights_matrix[layer], flags=['multi_index'], op_flags=['readwrite'])
         while not iterator.finished:
             idx = iterator.multi_index
             def wrap(z) -> Number:
-                x_copy = x.copy()
-                x_copy[idx] = z
-                return func(x_copy)
-            grad[idx] = self._center_difference(wrap, x[idx], h)
+                weights_matrix_copy = [ weights.copy() for weights in weights_matrix]
+                weights_matrix_copy[layer][idx] = z
+                return func(weights_matrix_copy)
+            grad[idx] = self._center_difference(wrap, weights_matrix[layer][idx], h)
             iterator.iternext()
         return grad
     
@@ -118,3 +141,4 @@ class NeuralNetwork:
 
     #     return grads
 # NeuralNetwork(3, np.array([3, 4, 3, 2])).predict(np.array([2,3,1]))
+
