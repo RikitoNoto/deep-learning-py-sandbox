@@ -2,5 +2,9 @@
   "python.analysis.extraPaths": [
     "venv\\lib\\python3.11\\site-packages",
     "./src"
-  ]
+  ],
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
 }
