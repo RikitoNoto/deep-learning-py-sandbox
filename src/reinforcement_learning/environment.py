@@ -105,6 +105,18 @@ class GridWorld:
                 converted_dict[state][action.value] = probability
         return converted_dict
 
+    def __convert_q_actions_to_index(
+        self, q: defaultdict[tuple[tuple, Actions], float]
+    ) -> defaultdict[tuple[tuple, int], float]:
+        converted_dict: defaultdict[tuple[tuple, int], float] = defaultdict(
+            q.default_factory
+        )
+        for q, value in q.items():
+            converted_key = (q[0], q[1].value)
+            converted_dict[converted_key] = value
+        return converted_dict
+
     def render_q(self, q=None, print_value=True):
         renderer = Renderer(self.reward_map, self.goal_state, self.wall_state)
-        renderer.render_q(q, print_value)
+        converted_dict = self.__convert_q_actions_to_index(q)
+        renderer.render_q(converted_dict, print_value)
